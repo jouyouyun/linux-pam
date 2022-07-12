@@ -32,6 +32,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include <stddef.h>
+#include <stdio.h>
+#include <sys/syslog.h>
 #define _ATFILE_SOURCE
 
 #include "pam_cc_compat.h"
@@ -392,8 +395,8 @@ static int parse_method(char *method, struct polydir_s *poly,
 {
     enum polymethod pm;
     char *sptr = NULL;
-    static const char *method_names[] = { "user", "context", "level", "tmpdir",
-	"tmpfs", NULL };
+    static const char *method_names[] = {"user",  "context", "level", "tmpdir",
+	"tmpfs", "mode", NULL};
     static const char *flag_names[] = { "create", "noinit", "iscript",
 	"shared", "mntopts", NULL };
     static const unsigned int flag_values[] = { POLYDIR_CREATE, POLYDIR_NOINIT,
@@ -696,6 +699,51 @@ out:
     return retval;
 }
 
+#define USER_MODE_NORMAL "normal"
+#define USER_MODE_WORK "work"
+#define USER_MODE_CHILD "child"
+#define MAX_USER_MODE_LEN 16
+
+static int read_user_mode(const char *user, char *mode)
+{
+    int len = 0;
+    int retval = 0;
+    char confname[1024] = {0};
+    char line[MAX_USER_MODE_LEN] = {0};
+    FILE *fr = NULL;
+
+    memset(confname, 0, 1024);
+    memset(line, 0, MAX_USER_MODE_LEN);
+    memset(mode, 0, MAX_USER_MODE_LEN);
+
+    retval = sprintf(confname, "%s%s", NAMESPACE_MODE_DIR, user);
+    #ifdef VENDOR_PAM_NAMESPACE_CONFIG
+    retval = sprintf(confname, "%s%s", VENDOR_NAMESPACE_MODE_DIR, user);
+    #endif
+    if (retval < 0)
+        return retval;
+
+    fr = fopen(confname, "r");
+    if (fr == NULL)
+        return -1;
+
+    fgets(line, MAX_USER_MODE_LEN, fr);
+    fclose(fr);
+    len = strlen(line);
+    if (line[len-1] == '\n')
+        line[len-1] = '\0';
+
+    if (strcmp(line, USER_MODE_NORMAL) == 0 ||
+        strcmp(line, USER_MODE_WORK) == 0 ||
+        strcmp(line, USER_MODE_CHILD) == 0) {
+        retval = sprintf(mode, "%s", line);
+        if (retval < 0)
+            return retval;
+    }
+
+    return 0;
+}
+
 
 /*
  * Parses /etc/security/namespace.conf file to build a linked list of
@@ -907,6 +955,8 @@ static int form_context(const struct polydir_s *polyptr,
 
 	if (polyptr->method == USER) return PAM_SUCCESS;
 
+	if (polyptr->method == MODE) return PAM_SUCCESS;
+
 	if (idata->flags & PAMNS_USE_CURRENT_CONTEXT) {
 		rc = getcon(&scon);
 	} else if (idata->flags & PAMNS_USE_DEFAULT_CONTEXT) {
@@ -1083,6 +1133,20 @@ static int poly_name(const struct polydir_s *polyptr, char **i_name,
 
 #endif /* WITH_SELINUX */
 
+	case MODE: {
+        // Get mode for the user
+        char mode[MAX_USER_MODE_LEN] = {0};
+        if (read_user_mode(idata->user, (char *)mode) < 0) {
+            memset(mode, 0, MAX_USER_MODE_LEN);
+            sprintf(mode, "%s", USER_MODE_NORMAL);
+        }
+        pam_syslog(idata->pamh, LOG_DEBUG, "user mode %s", mode);
+        if (asprintf(i_name, "%s-%s", idata->user, mode) < 0) {
+            *i_name = NULL;
+            goto fail;
+        }
+        break;
+	}
 	case TMPDIR:
 	case TMPFS:
 	    if ((*i_name=strdup("")) == NULL)

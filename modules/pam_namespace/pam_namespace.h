@@ -94,11 +94,13 @@
 #define NAMESPACE_INIT_SCRIPT (SCONFIGDIR "/namespace.init")
 #define NAMESPACE_D_DIR (SCONFIGDIR "/namespace.d/")
 #define NAMESPACE_D_GLOB (SCONFIGDIR "/namespace.d/*.conf")
+#define NAMESPACE_MODE_DIR (SCONFIGDIR "/namespace-mode/")
 #ifdef VENDOR_SCONFIGDIR
 #define VENDOR_NAMESPACE_INIT_SCRIPT (VENDOR_SCONFIGDIR "/namespace.init")
 #define VENDOR_PAM_NAMESPACE_CONFIG (VENDOR_SCONFIGDIR "/namespace.conf")
 #define VENDOR_NAMESPACE_D_DIR (VENDOR_SCONFIGDIR "/namespace.d/")
 #define VENDOR_NAMESPACE_D_GLOB (VENDOR_SCONFIGDIR "/namespace.d/*.conf")
+#define VENDOR_NAMESPACE_MODE_DIR (VENDOR_SCONFIGDIR "/namespace-mode/")
 #endif
 
 /* module flags */
@@ -136,7 +138,8 @@ enum polymethod {
     CONTEXT,
     LEVEL,
     TMPDIR,
-    TMPFS
+    TMPFS,
+    MODE
 };
 
 /*
